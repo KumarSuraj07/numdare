@@ -1,6 +1,7 @@
 const CACHE = 'numdare-v1';
 const SHELL = [
   './numdare_v5_minimal.html',
+  './puzzle.png',
   'https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@300;400;500;600&display=swap',
   'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css'
 ];
