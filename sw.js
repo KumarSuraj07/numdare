@@ -1,9 +1,8 @@
-const CACHE = 'numdare-v1';
+const CACHE = 'numdare-v2';
 const SHELL = [
-  './numdare_v5_minimal.html',
+  './index.html',
   './puzzle.png',
-  'https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@300;400;500;600&display=swap',
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css'
+  './manifest.json'
 ];
 
 self.addEventListener('install', e => {
@@ -19,7 +18,11 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
-  );
+  // Network first for Firebase and CDN, cache first for local files
+  const url = e.request.url;
+  if(url.includes('firebasejs') || url.includes('googleapis') || url.includes('jsdelivr')){
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  } else {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  }
 });

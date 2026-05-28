@@ -6,6 +6,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#07070f">
 <meta name="description" content="Guess numbers, face Truth or Dare!">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NUMDARE">
+<link rel="apple-touch-icon" href="puzzle.png">
 <link rel="manifest" href="manifest.json">
 <title>NUMDARE</title>
 </head>
@@ -561,17 +565,33 @@ function guess(n,btn){
     G.scores[G.cur]++;
     hint('ok','<i class="ti ti-circle-check"></i> Correct! +1 point 🎉');
     rollDice();
-    if(G.mode==='on') pushGameState('game');
+    if(G.mode==='on'){
+      // Reveal secret now that turn is won
+      set(ref(db,`rooms/${G.roomCode}/game`),{
+        screen:'game', cur:G.cur, att:G.att, guessed:G.guessed,
+        scores:G.scores, round:G.round, totalR:G.totalR,
+        secret:G.secret, tdDone:false, tdText:''
+      });
+    }
     setTimeout(()=>advance(),1600);
   } else {
     btn.classList.add('miss'); btn.disabled=true;
     if(G.att>0){
       const up=n<G.secret;
       hint(up?'up':'dn',`<i class="ti ti-arrow-${up?'up':'down'}"></i> Too ${up?'low — go higher':'high — go lower'} &nbsp;(${G.att} left)`);
-      if(G.mode==='on') pushGameState('game');
+      if(G.mode==='on'){
+        // Only push att+guessed, keep secret:0
+        update(ref(db,`rooms/${G.roomCode}/game`),{att:G.att, guessed:G.guessed, scores:G.scores});
+      }
     } else {
       hint('no',`<i class="ti ti-x"></i> No attempts left! The number was <b style="color:var(--p);font-family:Orbitron,monospace">${G.secret}</b>`);
-      if(G.mode==='on') pushGameState('td');
+      if(G.mode==='on'){
+        set(ref(db,`rooms/${G.roomCode}/game`),{
+          screen:'td', cur:G.cur, att:0, guessed:G.guessed,
+          scores:G.scores, round:G.round, totalR:G.totalR,
+          secret:G.secret, tdDone:false, tdText:''
+        });
+      }
       setTimeout(()=>showTD(),1600);
     }
   }
@@ -616,27 +636,34 @@ function doDare(){
 }
 function next(){
   if(G.mode==='on' && !isMyTurn()) return;
+  // Clear tdDone so the listener doesn't re-render TD screen on next push
+  if(G.mode==='on'){
+    set(ref(db,`rooms/${G.roomCode}/game/tdDone`), false);
+    set(ref(db,`rooms/${G.roomCode}/game/tdText`), '');
+  }
   advance();
 }
 
 /* ── ADVANCE TURN ── */
 function advance(){
   let nextIdx=G.cur+1;
-  if(nextIdx>=G.players.length){
-    nextIdx=0; G.round++;
-    if(G.round>G.totalR){
-      if(G.mode==='on') pushGameState('score');
-      else showScore();
-      return;
-    }
+  if(nextIdx>=G.players.length){ nextIdx=0; G.round++; }
+  if(G.round>G.totalR){
+    if(G.mode==='on') pushGameState('score');
+    else showScore();
+    return;
   }
   G.cur=nextIdx;
   if(G.mode==='on'){
-    // Active player writes new turn; others wait
     if(isMyTurn()){
       G.secret=rng(10)+1; G.att=3; G.guessed=[];
-      pushGameState('game');
+      // Push new turn — secret stays local, not written to DB
+      set(ref(db,`rooms/${G.roomCode}/game`),{
+        screen:'game', cur:G.cur, att:3, guessed:[], scores:G.scores,
+        round:G.round, totalR:G.totalR, secret:0, tdDone:false, tdText:''
+      });
     }
+    // Non-active players react via listenGame
   } else {
     beginTurn();
   }
@@ -644,17 +671,12 @@ function advance(){
 
 /* ── FIREBASE GAME STATE ── */
 function pushGameState(screen, extra={}){
-  update(ref(db,`rooms/${G.roomCode}/game`),{
-    screen,
-    cur: G.cur,
-    secret: G.secret,
-    att: G.att,
-    guessed: G.guessed,
-    scores: G.scores,
-    round: G.round,
-    totalR: G.totalR,
-    ...extra
-  });
+  const payload={screen,cur:G.cur,att:G.att,guessed:G.guessed,scores:G.scores,round:G.round,totalR:G.totalR,...extra};
+  // Only include secret when it's safe to share (td/score screens) or it's a new turn marker
+  if(screen==='game' && !extra.revealSecret) payload.secret=0; // hide secret from DB during guessing
+  if(screen==='td'||screen==='score') payload.secret=G.secret;
+  if(extra.newTurn) payload.secret=0; // fresh turn, secret stays local
+  set(ref(db,`rooms/${G.roomCode}/game`), payload);
 }
 
 function listenGame(){
@@ -663,16 +685,24 @@ function listenGame(){
   G.gameUnsub=onValue(r, snap=>{
     if(!snap.exists()) return;
     const s=snap.val();
-    // Sync state to all clients
-    G.cur=s.cur; G.secret=s.secret; G.att=s.att;
+    G.cur=s.cur; G.att=s.att;
     G.guessed=s.guessed||[]; G.scores=s.scores||G.scores;
     G.round=s.round; G.totalR=s.totalR;
+    // Only sync secret for non-active players on td/score
+    if(s.screen==='td'||s.screen==='score') G.secret=s.secret;
     const activeName=G.players[G.cur];
     const mine=G.myName===activeName;
 
     if(s.screen==='game'){
-      setWait(!mine, activeName);
-      show('scGame'); renderGame();
+      if(mine){
+        // Active player: hide overlay, show game
+        setWait(false);
+        show('scGame'); renderGame();
+      } else {
+        // Waiting player: just show overlay, don't render game board
+        setWait(true, activeName);
+        show('scGame');
+      }
     } else if(s.screen==='td'){
       setWait(false);
       show('scTD');
@@ -682,7 +712,6 @@ function listenGame(){
         document.getElementById('tdBtns').style.display='none';
         document.getElementById('tdTxt').innerHTML=s.tdText||'';
         document.getElementById('tdAns').style.display='block';
-        // Only active player sees Next button
         document.querySelector('#tdAns .btn').style.display=mine?'':'none';
       } else {
         document.getElementById('tdAns').style.display='none';
