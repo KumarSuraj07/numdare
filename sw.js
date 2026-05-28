@@ -1,7 +1,8 @@
-const CACHE = 'numdare-v2';
+const CACHE = 'numdare-v3';
 const SHELL = [
   './index.html',
   './puzzle.png',
+  './icon-192.png',
   './manifest.json'
 ];
 
@@ -18,7 +19,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Network first for Firebase and CDN, cache first for local files
   const url = e.request.url;
   if(url.includes('firebasejs') || url.includes('googleapis') || url.includes('jsdelivr')){
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
