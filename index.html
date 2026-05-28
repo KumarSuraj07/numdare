@@ -508,22 +508,29 @@ function isMyTurn(){ return G.mode==='off' || G.players[G.cur]===G.myName; }
 function beginTurn(){
   G.secret=rng(10)+1; G.att=3; G.guessed=[];
   if(G.mode==='on'){
-    // Only the active player writes the new turn state to Firebase
-    if(isMyTurn()){
-      setWait(false);
-      pushGameState('game');
-    }
-    // Non-active players will receive state via listenGame()
+    if(isMyTurn()) pushTurn();
+    // non-active players react via listenGame
     return;
   }
   renderGame(); show('scGame');
 }
 
+// Write a fresh turn to Firebase (only called by the active player)
+function pushTurn(){
+  set(ref(db,`rooms/${G.roomCode}/game`),{
+    screen:'game', cur:G.cur, att:G.att,
+    guessed:[], scores:G.scores,
+    round:G.round, totalR:G.totalR,
+    secret:0, tdDone:false, tdText:''
+  });
+}
+
 function renderGame(){
   const p=G.players[G.cur], c=col(G.cur);
   const bn=document.getElementById('banner');
+  bn.style.background=`${c}12`;
+  bn.style.borderColor=`${c}35`;
   bn.innerHTML=`<span style="opacity:.5;font-size:12px;letter-spacing:.8px">ROUND ${G.round}/${G.totalR} &nbsp;·&nbsp; </span><span style="color:${c};font-weight:600">${p}</span>'s turn`;
-  bn.style.cssText+=`;background:${c}12;border-color:${c}35;`;
   document.getElementById('roundBadge').innerHTML=`<i class="ti ti-repeat"></i> ${G.round}/${G.totalR}`;
   renderDots(); buildGrid();
   document.getElementById('hintEl').innerHTML='';
@@ -568,26 +575,27 @@ function guess(n,btn){
     hint('ok','<i class="ti ti-circle-check"></i> Correct! +1 point 🎉');
     rollDice();
     if(G.mode==='on'){
-      // Reveal secret now that turn is won
+      // Reveal secret only on correct guess — others see the winning number
       set(ref(db,`rooms/${G.roomCode}/game`),{
         screen:'game', cur:G.cur, att:G.att, guessed:G.guessed,
         scores:G.scores, round:G.round, totalR:G.totalR,
         secret:G.secret, tdDone:false, tdText:''
       });
     }
-    setTimeout(()=>advance(),1600);
+    setTimeout(()=>doAdvance(),1600);
   } else {
     btn.classList.add('miss'); btn.disabled=true;
     if(G.att>0){
       const up=n<G.secret;
       hint(up?'up':'dn',`<i class="ti ti-arrow-${up?'up':'down'}"></i> Too ${up?'low — go higher':'high — go lower'} &nbsp;(${G.att} left)`);
       if(G.mode==='on'){
-        // Only push att+guessed, keep secret:0
+        // Only update att+guessed — never expose secret during guessing
         update(ref(db,`rooms/${G.roomCode}/game`),{att:G.att, guessed:G.guessed, scores:G.scores});
       }
     } else {
       hint('no',`<i class="ti ti-x"></i> No attempts left! The number was <b style="color:var(--p);font-family:Orbitron,monospace">${G.secret}</b>`);
       if(G.mode==='on'){
+        // Transition to TD — reveal secret now
         set(ref(db,`rooms/${G.roomCode}/game`),{
           screen:'td', cur:G.cur, att:0, guessed:G.guessed,
           scores:G.scores, round:G.round, totalR:G.totalR,
@@ -610,75 +618,78 @@ function showTD(){
   document.getElementById('revNum').textContent=G.secret;
   document.getElementById('tdAns').style.display='none';
   document.getElementById('tdBtns').style.display='flex';
-  // Only active player can pick truth/dare
-  const myTurn=isMyTurn();
-  document.querySelectorAll('#tdBtns .btn').forEach(b=>b.disabled=!myTurn);
+  document.querySelectorAll('#tdBtns .btn').forEach(b=>b.disabled=!isMyTurn());
   const tc=document.getElementById('tdCard');
   tc.style.animation='none'; void tc.offsetWidth; tc.style.animation='flip .45s ease';
-  show('scTD');
   setWait(false);
+  show('scTD');
 }
 function doTruth(){
   if(!isMyTurn()) return;
   const q=pickFresh(TRUTHS,G.usedT);
+  const html=`<div class="badge2" style="background:rgba(96,165,250,.12);color:#93c5fd"><i class="ti ti-message-question"></i> TRUTH</div><br>${q}`;
   document.getElementById('tdBtns').style.display='none';
-  document.getElementById('tdTxt').innerHTML=
-    `<div class="badge2" style="background:rgba(96,165,250,.12);color:#93c5fd"><i class="ti ti-message-question"></i> TRUTH</div><br>${q}`;
+  document.getElementById('tdTxt').innerHTML=html;
   document.getElementById('tdAns').style.display='block';
-  if(G.mode==='on') pushGameState('td', {tdText: document.getElementById('tdTxt').innerHTML, tdDone:true});
+  if(G.mode==='on'){
+    set(ref(db,`rooms/${G.roomCode}/game`),{
+      screen:'td', cur:G.cur, att:G.att, guessed:G.guessed,
+      scores:G.scores, round:G.round, totalR:G.totalR,
+      secret:G.secret, tdDone:true, tdText:html
+    });
+  }
 }
 function doDare(){
   if(!isMyTurn()) return;
   const d=pickFresh(DARES,G.usedD);
+  const html=`<div class="badge2" style="background:rgba(251,146,60,.12);color:#fdba74"><i class="ti ti-flame"></i> DARE</div><br>${d}`;
   document.getElementById('tdBtns').style.display='none';
-  document.getElementById('tdTxt').innerHTML=
-    `<div class="badge2" style="background:rgba(251,146,60,.12);color:#fdba74"><i class="ti ti-flame"></i> DARE</div><br>${d}`;
+  document.getElementById('tdTxt').innerHTML=html;
   document.getElementById('tdAns').style.display='block';
-  if(G.mode==='on') pushGameState('td', {tdText: document.getElementById('tdTxt').innerHTML, tdDone:true});
+  if(G.mode==='on'){
+    set(ref(db,`rooms/${G.roomCode}/game`),{
+      screen:'td', cur:G.cur, att:G.att, guessed:G.guessed,
+      scores:G.scores, round:G.round, totalR:G.totalR,
+      secret:G.secret, tdDone:true, tdText:html
+    });
+  }
 }
 function next(){
   if(G.mode==='on' && !isMyTurn()) return;
-  // Clear tdDone so the listener doesn't re-render TD screen on next push
-  if(G.mode==='on'){
-    set(ref(db,`rooms/${G.roomCode}/game/tdDone`), false);
-    set(ref(db,`rooms/${G.roomCode}/game/tdText`), '');
-  }
-  advance();
+  doAdvance();
 }
 
 /* ── ADVANCE TURN ── */
-function advance(){
+function doAdvance(){
   let nextIdx=G.cur+1;
-  if(nextIdx>=G.players.length){ nextIdx=0; G.round++; }
-  if(G.round>G.totalR){
-    if(G.mode==='on') pushGameState('score');
-    else showScore();
+  let nextRound=G.round;
+  if(nextIdx>=G.players.length){ nextIdx=0; nextRound++; }
+
+  if(nextRound>G.totalR){
+    // Game over
+    if(G.mode==='on'){
+      set(ref(db,`rooms/${G.roomCode}/game`),{
+        screen:'score', cur:G.cur, att:G.att, guessed:G.guessed,
+        scores:G.scores, round:nextRound, totalR:G.totalR,
+        secret:0, tdDone:false, tdText:''
+      });
+    } else { showScore(); }
     return;
   }
-  G.cur=nextIdx;
+
+  G.cur=nextIdx; G.round=nextRound;
+
   if(G.mode==='on'){
     if(isMyTurn()){
+      // I am the next active player — generate secret locally and push new turn
       G.secret=rng(10)+1; G.att=3; G.guessed=[];
-      // Push new turn — secret stays local, not written to DB
-      set(ref(db,`rooms/${G.roomCode}/game`),{
-        screen:'game', cur:G.cur, att:3, guessed:[], scores:G.scores,
-        round:G.round, totalR:G.totalR, secret:0, tdDone:false, tdText:''
-      });
+      pushTurn();
     }
-    // Non-active players react via listenGame
+    // All other players react via listenGame
   } else {
-    beginTurn();
+    G.secret=rng(10)+1; G.att=3; G.guessed=[];
+    renderGame(); show('scGame');
   }
-}
-
-/* ── FIREBASE GAME STATE ── */
-function pushGameState(screen, extra={}){
-  const payload={screen,cur:G.cur,att:G.att,guessed:G.guessed,scores:G.scores,round:G.round,totalR:G.totalR,...extra};
-  // Only include secret when it's safe to share (td/score screens) or it's a new turn marker
-  if(screen==='game' && !extra.revealSecret) payload.secret=0; // hide secret from DB during guessing
-  if(screen==='td'||screen==='score') payload.secret=G.secret;
-  if(extra.newTurn) payload.secret=0; // fresh turn, secret stays local
-  set(ref(db,`rooms/${G.roomCode}/game`), payload);
 }
 
 function listenGame(){
@@ -687,33 +698,41 @@ function listenGame(){
   G.gameUnsub=onValue(r, snap=>{
     if(!snap.exists()) return;
     const s=snap.val();
+
+    // Sync shared state
     G.cur=s.cur; G.att=s.att;
-    G.guessed=s.guessed||[]; G.scores=s.scores||G.scores;
+    G.guessed=s.guessed||[];
+    G.scores=s.scores||G.scores;
     G.round=s.round; G.totalR=s.totalR;
-    // Only sync secret for non-active players on td/score
-    if(s.screen==='td'||s.screen==='score') G.secret=s.secret;
+
     const activeName=G.players[G.cur];
     const mine=G.myName===activeName;
 
     if(s.screen==='game'){
       if(mine){
-        // Active player: hide overlay, show game
+        // I am the active player — show my game board
         setWait(false);
-        show('scGame'); renderGame();
-      } else {
-        // Waiting player: just show overlay, don't render game board
-        setWait(true, activeName);
         show('scGame');
+        renderGame();
+      } else {
+        // I am waiting — show overlay ONLY, do not render game board at all
+        show('scGame'); // keep scGame as base so layout is stable
+        setWait(true, activeName);
       }
     } else if(s.screen==='td'){
+      // Everyone sees the TD screen — sync secret now
+      G.secret=s.secret;
       setWait(false);
       show('scTD');
       document.getElementById('tdBanner').innerHTML=`<i class="ti ti-flame" style="color:var(--o)"></i> &nbsp;<b>${activeName}</b> — Truth or Dare!`;
       document.getElementById('revNum').textContent=s.secret;
+      const tc=document.getElementById('tdCard');
+      tc.style.animation='none'; void tc.offsetWidth; tc.style.animation='flip .45s ease';
       if(s.tdDone){
         document.getElementById('tdBtns').style.display='none';
         document.getElementById('tdTxt').innerHTML=s.tdText||'';
         document.getElementById('tdAns').style.display='block';
+        // Only active player sees Next button
         document.querySelector('#tdAns .btn').style.display=mine?'':'none';
       } else {
         document.getElementById('tdAns').style.display='none';
@@ -721,6 +740,7 @@ function listenGame(){
         document.querySelectorAll('#tdBtns .btn').forEach(b=>b.disabled=!mine);
       }
     } else if(s.screen==='score'){
+      G.secret=s.secret;
       setWait(false);
       showScore();
     }
@@ -836,12 +856,11 @@ function listenRoom(){
       G.scores=G.players.map(()=>0);
       G.cur=0; G.round=1; G.totalR=G.players.length;
       G.usedT=new Set(); G.usedD=new Set();
-      // Start listening to game state for all players
       listenGame();
-      // Only the host writes the first turn
-      if(G.host){
+      // Only the first active player (cur=0) writes the first turn
+      if(G.myName===G.players[0]){
         G.secret=rng(10)+1; G.att=3; G.guessed=[];
-        pushGameState('game');
+        pushTurn();
       }
     }
   });
