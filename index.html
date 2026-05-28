@@ -127,7 +127,7 @@ input.ni::placeholder{color:var(--mu)}
 @keyframes droll{0%{transform:rotateX(0)rotateY(0)}35%{transform:rotateX(210deg)rotateY(120deg)}70%{transform:rotateX(390deg)rotateY(270deg)}100%{transform:rotateX(360deg)rotateY(360deg)}}
 
 /* numbers */
-.numgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+.numgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:12px 0}
 .nb{aspect-ratio:1;border-radius:11px;border:1px solid var(--br);background:rgba(0,0,0,.3);color:var(--tx);font-size:18px;font-weight:700;cursor:pointer;transition:all .16s;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',monospace}
 .nb:hover:not(:disabled){border-color:var(--p);color:var(--p);box-shadow:0 0 14px rgba(167,139,250,.25);transform:scale(1.07)}
 .nb:active:not(:disabled){transform:scale(.92)}
@@ -242,8 +242,8 @@ input.ni::placeholder{color:var(--mu)}
 
   <div class="card">
     <div class="lbl"><i class="ti ti-info-circle"></i> How to play</div>
-    <div class="how"><div class="how-ic" style="background:rgba(167,139,250,.12);color:var(--p)"><i class="ti ti-numbers"></i></div><div style="font-size:13px;color:var(--mu);line-height:1.6">Guess a hidden number <b style="color:var(--tx)">1–10</b> in <b style="color:var(--tx)">3 attempts</b> to score a point.</div></div>
-    <div class="how"><div class="how-ic" style="background:rgba(251,146,60,.12);color:var(--o)"><i class="ti ti-flame"></i></div><div style="font-size:13px;color:var(--mu);line-height:1.6">Fail all 3? Pick <b style="color:#93c5fd">Truth</b> or <b style="color:#fdba74">Dare</b> — no escape!</div></div>
+    <div class="how"><div class="how-ic" style="background:rgba(167,139,250,.12);color:var(--p)"><i class="ti ti-numbers"></i></div><div style="font-size:13px;color:var(--mu);line-height:1.6">Guess a hidden number <b style="color:var(--tx)">1–30</b> in <b style="color:var(--tx)">4 attempts</b> to score a point.</div></div>
+    <div class="how"><div class="how-ic" style="background:rgba(251,146,60,.12);color:var(--o)"><i class="ti ti-flame"></i></div><div style="font-size:13px;color:var(--mu);line-height:1.6">Fail all 4? Pick <b style="color:#93c5fd">Truth</b> or <b style="color:#fdba74">Dare</b> — no escape!</div></div>
     <div class="how"><div class="how-ic" style="background:rgba(52,211,153,.12);color:var(--g)"><i class="ti ti-trophy"></i></div><div style="font-size:13px;color:var(--mu);line-height:1.6">Highest score after <b style="color:var(--tx)">3 rounds</b> wins the crown.</div></div>
   </div>
 </div>
@@ -354,67 +354,15 @@ getAnalytics(app);
 const db = getDatabase(app);
 
 /* ── DATA ── */
-const TRUTHS=[
-  "What's the most embarrassing thing you've done in public?",
-  "Have you ever lied to get out of trouble? What did you say?",
-  "What's your biggest fear you haven't told anyone?",
-  "Who in this room do you find most annoying — and why?",
-  "What's the weirdest dream you've ever had?",
-  "Have you ever cheated in a game or exam?",
-  "What's the most childish thing you still do?",
-  "Who was your first crush and what happened?",
-  "What's a secret you've been keeping from your family?",
-  "Have you ever blamed someone else for something you did?",
-  "What's the most embarrassing song on your playlist?",
-  "Have you ever read someone's messages without them knowing?",
-  "What's something you pretend to like but actually hate?",
-  "What's the most ridiculous thing you've cried about?",
-  "Have you ever ghosted someone? Why?",
-  "What bad habit do you have that you wish you could stop?",
-  "Have you ever said 'I love you' and not meant it?",
-  "What's your most embarrassing childhood memory?",
-  "Have you ever pretended to be sick to avoid something?",
-  "What's the most trouble you've ever been in?",
-  "What is the pettiest reason you've been upset at someone?",
-  "Have you ever stolen something small?",
-  "What's your biggest insecurity?",
-  "What's the longest you've gone without showering?",
-  "Have you ever eavesdropped on a private conversation?"
-];
-const DARES=[
-  "Do your best impression of another player — keep going until everyone laughs.",
-  "Let the group go through your camera roll for 30 seconds.",
-  "Text a random contact: 'I know what you did' — show everyone the reply.",
-  "Do 20 jumping jacks right now without stopping.",
-  "Call a family member and tell them a terrible joke.",
-  "Speak only in rhymes for the next 2 minutes.",
-  "Do your best catwalk across the room.",
-  "Sing the first song that pops into your head for 30 seconds.",
-  "Say something genuinely nice about every player in the game.",
-  "Swap shoes with someone for the rest of the game.",
-  "Post an embarrassing selfie to your story for at least 5 minutes.",
-  "Do your best robot dance for 30 seconds.",
-  "Speak in an accent the group picks for the next 3 minutes.",
-  "Make up a rap about the person to your left.",
-  "Show everyone your last 5 web searches.",
-  "Do 15 push-ups right now.",
-  "Act like a dog for 1 full minute.",
-  "Try to juggle 3 objects for 30 seconds.",
-  "Close your eyes and identify an object by touch only.",
-  "Do your best celebrity impression until someone guesses who it is.",
-  "Hold a plank for 45 seconds without stopping.",
-  "Let someone else post one thing on your social media.",
-  "Eat something spicy and don't drink water for 2 minutes.",
-  "Do a one-minute stand-up comedy routine right now.",
-  "Let the group draw on your hand with a pen."
-];
+let TRUTHS=[], DARES=[];
+fetch('questions.json').then(r=>r.json()).then(d=>{ TRUTHS=d.truths; DARES=d.dares; });
 
 const COLS=['#a78bfa','#34d399','#f472b6','#fb923c','#60a5fa','#fbbf24','#f87171','#4ade80','#e879f9','#38bdf8'];
 
 /* ── STATE ── */
 let G={
   mode:'off', players:[], scores:[],
-  cur:0, secret:0, att:3, guessed:[], round:1, totalR:3,
+  cur:0, secret:0, att:4, guessed:[], round:1, totalR:3,
   usedT:new Set(), usedD:new Set(),
   roomCode:null, host:false, myName:null, unsub:null, gameUnsub:null
 };
@@ -496,7 +444,7 @@ function setWait(){} // no-op, overlay removed
 function isMyTurn(){ return G.mode==='off' || G.players[G.cur]===G.myName; }
 
 function beginTurn(){
-  G.secret=rng(10)+1; G.att=3; G.guessed=[];
+  G.secret=rng(30)+1; G.att=4; G.guessed=[];
   if(G.mode==='on'){
     if(isMyTurn()) pushTurn();
     return;
@@ -506,7 +454,7 @@ function beginTurn(){
 
 function pushTurn(){
   set(ref(db,`rooms/${G.roomCode}/game`),{
-    screen:'game', cur:G.cur, att:3,
+    screen:'game', cur:G.cur, att:4,
     guessed:[], scores:G.scores,
     round:G.round, totalR:G.totalR,
     secret:0, hint:'', tdDone:false, tdText:''
@@ -524,7 +472,7 @@ function renderGame(hintHtml){
 }
 function renderDots(){
   document.getElementById('dots').innerHTML=
-    Array.from({length:3},(_,i)=>`<div class="dot ${i<(3-G.att)?'dead':'alive'}"></div>`).join('');
+    Array.from({length:4},(_,i)=>`<div class="dot ${i<(4-G.att)?'dead':'alive'}"></div>`).join('');
 }
 function rollDice(){
   const el=document.getElementById('diceEl');
@@ -534,7 +482,7 @@ function rollDice(){
 function buildGrid(){
   const g=document.getElementById('grid'); g.innerHTML='';
   const myTurn=isMyTurn();
-  for(let i=1;i<=10;i++){
+  for(let i=1;i<=30;i++){
     const b=document.createElement('button');
     b.className='nb'; b.textContent=i;
     const guessIdx=G.guessed.indexOf(i);
@@ -673,19 +621,19 @@ function doAdvance(){
     // is generated by whoever is next. But we need ALL clients to transition.
     // Solution: write a 'next' screen state that all clients react to,
     // then the next active player generates their secret locally.
-    const nextSecret = G.players[nextIdx]===G.myName ? rng(10)+1 : 0;
+    const nextSecret = G.players[nextIdx]===G.myName ? rng(30)+1 : 0;
     if(G.players[nextIdx]===G.myName){
-      G.secret=nextSecret; G.att=3; G.guessed=[];
+      G.secret=nextSecret; G.att=4; G.guessed=[];
     }
     set(ref(db,`rooms/${G.roomCode}/game`),{
-      screen:'game', cur:nextIdx, att:3,
+      screen:'game', cur:nextIdx, att:4,
       guessed:[], scores:G.scores,
       round:nextRound, totalR:G.totalR,
       secret:0, hint:'', tdDone:false, tdText:''
     });
   } else {
     G.cur=nextIdx; G.round=nextRound;
-    G.secret=rng(10)+1; G.att=3; G.guessed=[];
+    G.secret=rng(30)+1; G.att=4; G.guessed=[];
     renderGame(); show('scGame');
   }
 }
@@ -706,12 +654,12 @@ function listenGame(){
 
     const activeName=G.players[G.cur];
     const mine=G.myName===activeName;
-    const isFreshTurn=(s.att===3 && G.guessed.length===0 && s.secret===0);
+    const isFreshTurn=(s.att===4 && G.guessed.length===0 && s.secret===0);
 
     if(s.screen==='game'){
       // If it's a fresh turn and I'm the active player, generate my secret locally
       if(isFreshTurn && mine && G.cur!==prevCur){
-        G.secret=rng(10)+1;
+        G.secret=rng(30)+1; G.att=4;
       } else if(s.secret>0){
         G.secret=s.secret; // sync revealed secret
       }
@@ -853,7 +801,7 @@ function listenRoom(){
       listenGame();
       // Only the first active player (cur=0) writes the first turn
       if(G.myName===G.players[0]){
-        G.secret=rng(10)+1; G.att=3; G.guessed=[];
+        G.secret=rng(30)+1; G.att=4; G.guessed=[];
         pushTurn();
       }
     }

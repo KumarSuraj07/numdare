@@ -1,6 +1,7 @@
-const CACHE = 'numdare-v4';
+const CACHE = 'numdare-v6';
 const SHELL = [
   './index.html',
+  './questions.json',
   './icon-192.png',
   './icon-512.png',
   './manifest.json'
